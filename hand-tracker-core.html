@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Classroom Hand Tracker — Core Engine</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=Nunito:wght@600;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --sky:#8FD6FF;
+    --sky-deep:#4FB8E8;
+    --sun:#FFD34D;
+    --grass:#6FCF7A;
+    --coral:#FF7A6B;
+    --plum:#2E2A4A;
+    --white:#FFFFFF;
+  }
+  *{box-sizing:border-box;}
+  html,body{
+    margin:0; padding:0; height:100%; overflow:hidden;
+    font-family:'Nunito', sans-serif;
+    background: linear-gradient(180deg, var(--sky) 0%, var(--sky-deep) 55%, #3FA0D0 100%);
+    color:var(--plum);
+  }
+  #sun{
+    position:fixed; top:-60px; right:-60px; width:220px; height:220px;
+    background:var(--sun); border-radius:50%;
+    box-shadow:0 0 0 18px rgba(255,211,77,0.25);
+  }
+  h1{
+    font-family:'Baloo 2', sans-serif;
+    font-weight:800;
+    text-align:center;
+    margin:18px 0 4px;
+    font-size:clamp(24px,4vw,40px);
+    color:var(--white);
+    text-shadow:0 3px 0 rgba(46,42,74,0.25);
+    position:relative;
+  }
+  #status{
+    text-align:center;
+    font-family:'Baloo 2', sans-serif;
+    font-weight:700;
+    font-size:clamp(16px,2.4vw,22px);
+    color:var(--plum);
+    background:var(--white);
+    display:inline-block;
+    padding:8px 22px;
+    border-radius:999px;
+    box-shadow:0 4px 0 rgba(0,0,0,0.12);
+  }
+  #statusRow{ text-align:center; position:relative; margin-bottom:10px;}
+
+  #stage{
+    position:relative;
+    width:min(1100px, 94vw);
+    height:min(620px, 62vh);
+    margin:0 auto;
+    background:rgba(255,255,255,0.35);
+    border-radius:28px;
+    border:6px solid var(--white);
+    overflow:hidden;
+  }
+  .target{
+    position:absolute;
+    border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    font-family:'Baloo 2',sans-serif; font-weight:700; color:white;
+    font-size:20px;
+    box-shadow:0 6px 0 rgba(0,0,0,0.15);
+    user-select:none;
+    transition:transform .12s ease;
+  }
+  #blobA{ width:90px;height:90px; background:var(--coral); top:60px; left:80px;}
+  #blobB{ width:90px;height:90px; background:var(--grass); top:60px; left:220px;}
+  #blobC{ width:90px;height:90px; background:#6FA8FF; top:60px; left:360px;}
+  #popTarget{
+    width:130px;height:130px; background:var(--sun); color:var(--plum);
+    top:60px; right:80px; font-size:16px; text-align:center; line-height:1.1;
+  }
+  #popTarget.popped{ background:var(--grass); color:white; }
+
+  .swipeZone{
+    position:absolute; top:0; bottom:0; width:70px;
+    display:flex; align-items:center; justify-content:center;
+    font-size:34px; opacity:.35; transition:opacity .15s ease, background .15s ease;
+  }
+  #swipeLeft{ left:0; }
+  #swipeRight{ right:0; }
+  .swipeZone.flash{ opacity:1; background:rgba(255,255,255,0.5); }
+
+  #cursor{
+    position:absolute; width:46px; height:46px; border-radius:50%;
+    background:radial-gradient(circle at 35% 30%, #fff 0%, var(--coral) 60%);
+    border:4px solid white;
+    pointer-events:none;
+    transform:translate(-50%,-50%);
+    box-shadow:0 4px 10px rgba(0,0,0,0.25);
+    transition:width .1s, height .1s, background .1s;
+    z-index:50;
+    left:50%; top:50%;
+  }
+  #cursor.closed{ background:radial-gradient(circle at 35% 30%, #fff 0%, var(--plum) 60%); width:38px;height:38px;}
+  #cursor.dragging{ box-shadow:0 0 0 6px rgba(255,255,255,0.6);}
+
+  #camWrap{
+    position:fixed; bottom:16px; right:16px; width:200px; height:150px;
+    border-radius:16px; overflow:hidden; border:4px solid white;
+    box-shadow:0 4px 12px rgba(0,0,0,0.3); background:#000;
+    z-index:100;
+  }
+  #camWrap video, #camWrap canvas{
+    position:absolute; top:0; left:0; width:100%; height:100%;
+    transform:scaleX(-1);
+  }
+  #legend{
+    max-width:900px; margin:14px auto 0; background:rgba(255,255,255,0.85);
+    border-radius:16px; padding:12px 20px; font-size:14px; line-height:1.5;
+  }
+  #legend b{ font-family:'Baloo 2',sans-serif; }
+
+  #startOverlay{
+    position:fixed; inset:0; background:rgba(46,42,74,0.92);
+    z-index:1000; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    text-align:center; padding:24px;
+  }
+  #startOverlay h2{ color:white; font-family:'Baloo 2',sans-serif; font-size:clamp(20px,5vw,30px); margin-bottom:10px;}
+  #startOverlay p{ color:#e6e6f0; max-width:420px; margin-bottom:22px; font-size:15px;}
+  #startBtn{
+    font-family:'Baloo 2',sans-serif; font-weight:700; font-size:20px;
+    background:var(--sun); color:var(--plum); border:none; padding:16px 36px;
+    border-radius:999px; box-shadow:0 5px 0 #d9ab2c; cursor:pointer;
+  }
+  #startBtn:active{ transform:translateY(3px); box-shadow:0 2px 0 #d9ab2c;}
+  #startOverlay.hidden{ display:none; }
+</style>
+</head>
+<body>
+
+<div id="startOverlay">
+  <h2>🖐️ Ready to play?</h2>
+  <p>Tap the button below, then allow camera access when your browser asks. Make sure you opened this page in Chrome or Safari (not inside another app like Messages or Instagram).</p>
+  <button id="startBtn">▶ Start Camera</button>
+</div>
+
+<div id="sun"></div>
+<h1>🖐️ Classroom Hand Tracker</h1>
+<div id="statusRow"><span id="status">Tap "Start Camera" to begin</span></div>
+
+<div id="stage">
+  <div class="swipeZone" id="swipeLeft">⬅️</div>
+  <div class="swipeZone" id="swipeRight">➡️</div>
+  <div class="target" id="blobA">Drag</div>
+  <div class="target" id="blobB">Drag</div>
+  <div class="target" id="blobC">Drag</div>
+  <div class="target" id="popTarget">Open→Close<br>hand here<br>to POP</div>
+  <div id="cursor"></div>
+</div>
+
+<div id="legend">
+  <b>How this playground works:</b> move your hand to move the cursor · quickly close and open your hand over the yellow circle to click/pop it · close your hand and hold still on a colored dot to pick it up and drag it · swipe your hand fast to the left or right edge to trigger arrows. This page is the shared engine (<code>window.HandTracker</code>) that every future game will plug into.
+</div>
+
+<div id="camWrap">
+  <video id="video" autoplay playsinline muted></video>
+  <canvas id="overlay"></canvas>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core@4.11.0/dist/tf-core.min.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-converter@4.11.0/dist/tf-converter.min.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl@4.11.0/dist/tf-backend-webgl.min.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1646424915/hands.min.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/hand-pose-detection@2.0.1/dist/hand-pose-detection.min.js" crossorigin="anonymous"></script>
+
+<script>
+/* =========================================================================
+   HandTracker — reusable engine
+   Emits: move, down, up, click, dragstart, dragmove, dragend, swipeleft, swiperight
+   Public state: HandTracker.cursor = {x, y} in normalized 0..1 stage coords
+   ========================================================================= */
+const HandTracker = (() => {
+  const listeners = {};
+  function on(evt, fn){ (listeners[evt] = listeners[evt]||[]).push(fn); }
+  function emit(evt, data){ (listeners[evt]||[]).forEach(fn => fn(data)); }
+
+  // Smoothing
+  let smoothX = 0.5, smoothY = 0.5;
+  const SMOOTH = 0.35; // higher = more responsive, lower = steadier
+
+  // Gesture state
+  let handOpen = true;
+  let closeStartTime = null;
+  let isDragging = false;
+  let stillAnchor = null; // {x,y,t} for detecting "hold still"
+  const HOLD_STILL_MS = 350;
+  const HOLD_STILL_DIST = 0.03; // normalized distance
+
+  // Swipe tracking
+  let posHistory = []; // {x, t}
+  const SWIPE_WINDOW_MS = 220;
+  const SWIPE_MIN_DIST = 0.28; // normalized horizontal travel
+  let swipeCooldownUntil = 0;
+
+  function curlScore(landmarks){
+    // Rough open/closed heuristic: compare fingertip-to-wrist distance
+    // against knuckle-to-wrist distance for 4 fingers (excluding thumb).
+    const wrist = landmarks[0];
+    const tips = [8, 12, 16, 20];
+    const knuckles = [5, 9, 13, 17];
+    let openCount = 0;
+    for(let i=0;i<4;i++){
+      const tip = landmarks[tips[i]];
+      const knuckle = landmarks[knuckles[i]];
+      const dTip = Math.hypot(tip.x-wrist.x, tip.y-wrist.y);
+      const dKnuckle = Math.hypot(knuckle.x-wrist.x, knuckle.y-wrist.y);
+      if(dTip > dKnuckle * 1.15) openCount++;
+    }
+    return openCount >= 3; // true = open palm
+  }
+
+  function processHand(landmarksNorm, now){
+    // landmarksNorm: array of {x,y} already normalized 0..1, mirrored for screen
+    const indexTip = landmarksNorm[8];
+    const wrist = landmarksNorm[0];
+
+    smoothX += (indexTip.x - smoothX) * SMOOTH;
+    smoothY += (indexTip.y - smoothY) * SMOOTH;
+    emit('move', {x: smoothX, y: smoothY});
+
+    // --- open/closed transition ---
+    const nowOpen = curlScore(landmarksNorm);
+    if(handOpen && !nowOpen){
+      // just closed
+      handOpen = false;
+      closeStartTime = now;
+      stillAnchor = {x: smoothX, y: smoothY, t: now};
+      emit('down', {x: smoothX, y: smoothY});
+    } else if(!handOpen && nowOpen){
+      // just opened
+      handOpen = true;
+      const heldMs = now - (closeStartTime||now);
+      emit('up', {x: smoothX, y: smoothY});
+      if(isDragging){
+        isDragging = false;
+        emit('dragend', {x: smoothX, y: smoothY});
+      } else if(heldMs < HOLD_STILL_MS){
+        emit('click', {x: smoothX, y: smoothY});
+      }
+      stillAnchor = null;
+    } else if(!handOpen){
+      // still closed — check for "hold still" -> drag
+      if(!isDragging){
+        if(stillAnchor){
+          const dist = Math.hypot(smoothX-stillAnchor.x, smoothY-stillAnchor.y);
+          if(dist > HOLD_STILL_DIST){
+            stillAnchor = {x: smoothX, y: smoothY, t: now}; // moved too much, reset anchor
+          } else if(now - stillAnchor.t > HOLD_STILL_MS){
+            isDragging = true;
+            emit('dragstart', {x: smoothX, y: smoothY});
+          }
+        }
+      } else {
+        emit('dragmove', {x: smoothX, y: smoothY});
+      }
+    }
+
+    // --- swipe detection (based on wrist horizontal motion) ---
+    posHistory.push({x: wrist.x, t: now});
+    posHistory = posHistory.filter(p => now - p.t <= SWIPE_WINDOW_MS);
+    if(now > swipeCooldownUntil && posHistory.length > 2){
+      const oldest = posHistory[0];
+      const dx = wrist.x - oldest.x;
+      if(Math.abs(dx) > SWIPE_MIN_DIST){
+        swipeCooldownUntil = now + 600;
+        posHistory = [];
+        emit(dx > 0 ? 'swiperight' : 'swipeleft', {x: smoothX, y: smoothY});
+      }
+    }
+  }
+
+  function noHandVisible(){
+    // decay: don't hold stale drag/gesture state forever
+    posHistory = [];
+  }
+
+  return { on, processHand, noHandVisible, get cursor(){ return {x: smoothX, y: smoothY}; } };
+})();
+
+/* =========================================================================
+   Wiring HandTracker into this calibration playground
+   ========================================================================= */
+const statusEl = document.getElementById('status');
+const stage = document.getElementById('stage');
+const cursorEl = document.getElementById('cursor');
+const swipeLeftEl = document.getElementById('swipeLeft');
+const swipeRightEl = document.getElementById('swipeRight');
+const popTarget = document.getElementById('popTarget');
+const blobs = [document.getElementById('blobA'), document.getElementById('blobB'), document.getElementById('blobC')];
+
+function stageXY(nx, ny){
+  const r = stage.getBoundingClientRect();
+  return { x: nx * r.width, y: ny * r.height, w:r.width, h:r.height };
+}
+
+let draggedBlob = null;
+
+HandTracker.on('move', ({x,y}) => {
+  const p = stageXY(x,y);
+  cursorEl.style.left = p.x + 'px';
+  cursorEl.style.top = p.y + 'px';
+});
+
+HandTracker.on('down', () => cursorEl.classList.add('closed'));
+HandTracker.on('up', () => cursorEl.classList.remove('closed'));
+
+HandTracker.on('click', ({x,y}) => {
+  const p = stageXY(x,y);
+  const rect = popTarget.getBoundingClientRect();
+  const sRect = stage.getBoundingClientRect();
+  const cx = rect.left - sRect.left + rect.width/2;
+  const cy = rect.top - sRect.top + rect.height/2;
+  if(Math.hypot(p.x-cx, p.y-cy) < rect.width/2 + 20){
+    popTarget.classList.toggle('popped');
+  }
+});
+
+HandTracker.on('dragstart', ({x,y}) => {
+  cursorEl.classList.add('dragging');
+  const p = stageXY(x,y);
+  let closest = null, closestDist = 9999;
+  blobs.forEach(b => {
+    const r = b.getBoundingClientRect();
+    const sR = stage.getBoundingClientRect();
+    const cx = r.left - sR.left + r.width/2;
+    const cy = r.top - sR.top + r.height/2;
+    const d = Math.hypot(p.x-cx, p.y-cy);
+    if(d < closestDist){ closestDist = d; closest = b; }
+  });
+  if(closest && closestDist < 70) draggedBlob = closest;
+});
+
+HandTracker.on('dragmove', ({x,y}) => {
+  if(!draggedBlob) return;
+  const p = stageXY(x,y);
+  draggedBlob.style.left = (p.x - draggedBlob.offsetWidth/2) + 'px';
+  draggedBlob.style.top = (p.y - draggedBlob.offsetHeight/2) + 'px';
+});
+
+HandTracker.on('dragend', () => {
+  cursorEl.classList.remove('dragging');
+  draggedBlob = null;
+});
+
+function flash(el){
+  el.classList.add('flash');
+  setTimeout(()=>el.classList.remove('flash'), 350);
+}
+HandTracker.on('swipeleft', () => flash(swipeLeftEl));
+HandTracker.on('swiperight', () => flash(swipeRightEl));
+
+/* =========================================================================
+   Camera + model loop
+   ========================================================================= */
+const video = document.getElementById('video');
+const overlay = document.getElementById('overlay');
+const octx = overlay.getContext('2d');
+
+async function main(){
+  if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+    statusEl.textContent = "⚠️ This browser can't access the camera. Try opening this link directly in Chrome or Safari (not inside another app).";
+    return;
+  }
+  try{
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { width:320, height:240, facingMode: 'user' },
+      audio:false
+    });
+    video.srcObject = stream;
+    await new Promise(res => video.onloadedmetadata = res);
+    video.play();
+    overlay.width = video.videoWidth; overlay.height = video.videoHeight;
+  }catch(e){
+    console.error(e);
+    if(e.name === 'NotAllowedError' || e.name === 'PermissionDeniedError'){
+      statusEl.textContent = "⚠️ Camera permission was denied. Check your browser's site settings and allow Camera for this page, then reload.";
+    } else if(e.name === 'NotFoundError'){
+      statusEl.textContent = "⚠️ No camera was found on this device.";
+    } else if(e.name === 'NotReadableError'){
+      statusEl.textContent = "⚠️ Camera is busy — close other apps using it and reload.";
+    } else {
+      statusEl.textContent = "⚠️ Can't reach the camera (" + e.name + "). Try Chrome or Safari directly, not an in-app browser.";
+    }
+    return;
+  }
+
+  statusEl.textContent = "Loading hand-tracking model…";
+  await tf.setBackend('webgl');
+  await tf.ready();
+
+  const model = handPoseDetection.SupportedModels.MediaPipeHands;
+  const detector = await handPoseDetection.createDetector(model, {
+    runtime: 'mediapipe',
+    modelType: 'lite',
+    maxHands: 1,
+    solutionPath: 'https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1646424915'
+  });
+
+  statusEl.textContent = "🖐️ Show your hand to the camera!";
+
+  let lastSeen = 0;
+  async function loop(){
+    const now = performance.now();
+    const hands = await detector.estimateHands(video, { flipHorizontal: true });
+    octx.clearRect(0,0,overlay.width, overlay.height);
+
+    if(hands.length > 0){
+      lastSeen = now;
+      statusEl.textContent = "✅ Tracking your hand";
+      const lm = hands[0].keypoints.map(k => ({
+        x: k.x / video.videoWidth,
+        y: k.y / video.videoHeight
+      }));
+      // draw skeleton dots for calibration feedback
+      octx.fillStyle = '#FF7A6B';
+      hands[0].keypoints.forEach(k=>{
+        octx.beginPath();
+        octx.arc(k.x, k.y, 4, 0, Math.PI*2);
+        octx.fill();
+      });
+      HandTracker.processHand(lm, now);
+    } else if(now - lastSeen > 400){
+      statusEl.textContent = "🖐️ Show your hand to the camera!";
+      HandTracker.noHandVisible();
+    }
+    requestAnimationFrame(loop);
+  }
+  loop();
+}
+
+document.getElementById('startBtn').addEventListener('click', () => {
+  document.getElementById('startOverlay').classList.add('hidden');
+  main();
+});
+</script>
+</body>
+</html>
