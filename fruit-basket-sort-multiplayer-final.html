@@ -1,0 +1,1471 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Fruit Basket Sort — Hand Tracker Game</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=Nunito:wght@600;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --sky:#8FD6FF;
+    --sky-deep:#4FB8E8;
+    --sun:#FFD34D;
+    --grass:#6FCF7A;
+    --coral:#FF7A6B;
+    --plum:#2E2A4A;
+    --white:#FFFFFF;
+    --apple:#FF5A52;
+    --orange:#FF9E2C;
+    --banana:#FFD93D;
+    --wood:#B5793B;
+    --wood-dark:#8C5A26;
+  }
+  *{box-sizing:border-box;}
+  html,body{
+    margin:0; padding:0; height:100%; overflow:hidden;
+    font-family:'Nunito', sans-serif;
+    background: linear-gradient(180deg, var(--sky) 0%, var(--sky-deep) 55%, #3FA0D0 100%);
+    color:var(--plum);
+  }
+  #sun{
+    position:fixed; top:-60px; right:-60px; width:220px; height:220px;
+    background:var(--sun); border-radius:50%;
+    box-shadow:0 0 0 18px rgba(255,211,77,0.25);
+  }
+  .cloud{ position:fixed; background:rgba(255,255,255,0.8); border-radius:50px; z-index:0; }
+  .cloud::before, .cloud::after{ content:''; position:absolute; background:rgba(255,255,255,0.8); border-radius:50%; }
+  #cloud1{ width:90px; height:32px; top:70px; left:6%; }
+  #cloud1::before{ width:50px; height:50px; top:-24px; left:8px; }
+  #cloud1::after{ width:36px; height:36px; top:-16px; left:46px; }
+  #cloud2{ width:70px; height:26px; top:130px; right:12%; }
+  #cloud2::before{ width:38px; height:38px; top:-18px; left:6px; }
+  #cloud2::after{ width:28px; height:28px; top:-12px; left:34px; }
+
+  h1{
+    font-family:'Baloo 2', sans-serif;
+    font-weight:800;
+    text-align:center;
+    margin:14px 0 4px;
+    font-size:clamp(22px,3.6vw,36px);
+    color:var(--white);
+    text-shadow:0 3px 0 rgba(46,42,74,0.25);
+    position:relative;
+    z-index:1;
+  }
+  #statusRow{ text-align:center; position:relative; margin-bottom:8px; z-index:1; display:flex; align-items:center; justify-content:center; gap:10px; flex-wrap:wrap;}
+  .pill{
+    font-family:'Baloo 2', sans-serif;
+    font-weight:700;
+    font-size:clamp(14px,2vw,18px);
+    color:var(--plum);
+    background:var(--white);
+    display:inline-block;
+    padding:6px 18px;
+    border-radius:999px;
+    box-shadow:0 4px 0 rgba(0,0,0,0.12);
+  }
+  #remaining{ background:var(--sun); }
+
+  #stage{
+    position:relative;
+    width:min(1100px, 94vw);
+    height:min(600px, 60vh);
+    margin:0 auto;
+    background:rgba(255,255,255,0.30);
+    border-radius:28px;
+    border:6px solid var(--white);
+    overflow:hidden;
+    z-index:1;
+  }
+  #grassStrip{
+    position:absolute; left:0; right:0; bottom:0; height:150px;
+    background:linear-gradient(180deg, rgba(111,207,122,0.0) 0%, rgba(93,190,105,0.65) 40%, rgba(78,168,90,0.85) 100%);
+    pointer-events:none;
+  }
+
+  /* ---- fruits ---- */
+  .fruit{
+    position:absolute;
+    width:74px; height:74px;
+    display:flex; align-items:center; justify-content:center;
+    font-size:44px;
+    border-radius:50%;
+    cursor:pointer;
+    user-select:none;
+    filter:drop-shadow(0 6px 4px rgba(0,0,0,0.25));
+    transition:transform .12s ease;
+    z-index:20;
+    touch-action:none;
+  }
+  .fruit.grabbed{ transform:scale(1.18); z-index:60; filter:drop-shadow(0 10px 8px rgba(0,0,0,0.35)); }
+  .fruit.settle{ transition:left .35s cubic-bezier(.34,1.56,.64,1), top .35s cubic-bezier(.34,1.56,.64,1); }
+  .fruit.wrong{ animation:shakeFruit .4s ease; }
+  @keyframes shakeFruit{
+    0%,100%{ transform:translateX(0); }
+    20%{ transform:translateX(-10px) rotate(-8deg); }
+    40%{ transform:translateX(10px) rotate(8deg); }
+    60%{ transform:translateX(-8px) rotate(-6deg); }
+    80%{ transform:translateX(8px) rotate(6deg); }
+  }
+  @keyframes popAway{
+    0%{ transform:scale(1.15); opacity:1; }
+    100%{ transform:scale(0.2); opacity:0; }
+  }
+  .fruit.gone{ animation:popAway .35s ease forwards; }
+
+  /* ---- baskets ---- */
+  #baskets{
+    position:absolute; left:0; right:0; bottom:14px;
+    display:flex; justify-content:space-around; align-items:flex-end;
+    z-index:30; pointer-events:none;
+  }
+  .basketWrap{
+    display:flex; flex-direction:column; align-items:center; width:31%;
+  }
+  .character{ width:92px; height:92px; margin-bottom:-14px; }
+  .basket{
+    position:relative;
+    width:min(180px, 92%);
+    height:96px;
+  }
+  .basket.hit{ animation:basketBounce .35s ease; }
+  .basket.reject{ animation:basketShake .35s ease; }
+  @keyframes basketBounce{
+    0%{ transform:scale(1); } 40%{ transform:scale(1.12); } 100%{ transform:scale(1); }
+  }
+  @keyframes basketShake{
+    0%,100%{ transform:translateX(0); } 25%{ transform:translateX(-8px); } 50%{ transform:translateX(8px); } 75%{ transform:translateX(-6px); }
+  }
+  .basketLabel{
+    text-align:center; font-family:'Baloo 2',sans-serif; font-weight:800;
+    font-size:15px; color:white; text-shadow:0 2px 0 rgba(0,0,0,0.2);
+    margin-top:2px;
+  }
+  .ribbon{
+    position:absolute; top:6px; left:50%; transform:translateX(-50%);
+    font-size:26px;
+  }
+
+  .cursor{
+    position:absolute; width:46px; height:46px; border-radius:50%;
+    background:radial-gradient(circle at 35% 30%, #fff 0%, var(--cursor-color, var(--coral)) 60%);
+    border:4px solid white;
+    pointer-events:none;
+    transform:translate(-50%,-50%);
+    box-shadow:0 4px 10px rgba(0,0,0,0.25);
+    transition:width .1s, height .1s, background .1s;
+    z-index:90;
+    left:50%; top:50%;
+  }
+  .cursor.closed{ background:radial-gradient(circle at 35% 30%, #fff 0%, var(--plum) 60%); width:38px;height:38px;}
+  .cursor.dragging{ box-shadow:0 0 0 6px rgba(255,255,255,0.6);}
+  .cursor.hidden{ display:none; }
+  .cursorTag{
+    position:absolute; top:-24px; left:50%; transform:translateX(-50%);
+    font-family:'Baloo 2',sans-serif; font-weight:800; font-size:11px; color:white;
+    background:var(--cursor-color, var(--coral)); padding:2px 9px; border-radius:999px;
+    white-space:nowrap; box-shadow:0 2px 0 rgba(0,0,0,0.15);
+  }
+
+  #camWrap{
+    position:fixed; bottom:16px; right:16px; width:180px; height:135px;
+    border-radius:16px; overflow:hidden; border:4px solid white;
+    box-shadow:0 4px 12px rgba(0,0,0,0.3); background:#000;
+    z-index:100;
+  }
+  #camWrap video, #camWrap canvas{
+    position:absolute; top:0; left:0; width:100%; height:100%;
+    transform:scaleX(-1);
+  }
+  #legend{
+    max-width:900px; margin:10px auto 0; background:rgba(255,255,255,0.85);
+    border-radius:16px; padding:10px 20px; font-size:13.5px; line-height:1.5;
+    position:relative; z-index:1;
+  }
+  #legend b{ font-family:'Baloo 2',sans-serif; }
+
+  #startOverlay, #winOverlay{
+    position:fixed; inset:0; background:rgba(46,42,74,0.92);
+    z-index:1000; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    text-align:center; padding:24px;
+  }
+  #startOverlay h2, #winOverlay h2{ color:white; font-family:'Baloo 2',sans-serif; font-size:clamp(20px,5vw,30px); margin-bottom:10px;}
+  #startOverlay p, #winOverlay p{ color:#e6e6f0; max-width:440px; margin-bottom:22px; font-size:15px;}
+  .bigBtn{
+    font-family:'Baloo 2',sans-serif; font-weight:700; font-size:20px;
+    background:var(--sun); color:var(--plum); border:none; padding:16px 36px;
+    border-radius:999px; box-shadow:0 5px 0 #d9ab2c; cursor:pointer;
+  }
+  .bigBtn:active{ transform:translateY(3px); box-shadow:0 2px 0 #d9ab2c;}
+  #calibrationOverlay{position:fixed;inset:0;background:rgba(46,42,74,.96);z-index:2000;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:20px;color:white;}
+  #calibrationOverlay.hidden{display:none !important;}
+  #calibrationPanel{width:min(92vw,560px);background:white;color:var(--plum);border-radius:28px;padding:24px 24px 20px;box-shadow:0 14px 40px rgba(0,0,0,.3);}
+  #calibrationTitle{font-family:'Baloo 2',sans-serif;font-size:28px;font-weight:800;margin:0 0 4px;}
+  #calibrationInstruction{font-size:16px;margin:0 0 14px;color:#555;}
+  #calibrationStage{position:relative;width:min(82vw,460px);height:min(54vw,300px);min-height:220px;margin:0 auto 14px;border-radius:22px;background:#eef7ff;overflow:hidden;border:5px solid #fff;box-shadow:inset 0 0 0 2px #dcecff;}
+  #calibrationTarget{position:absolute;left:50%;top:50%;width:150px;height:150px;border-radius:50%;transform:translate(-50%,-50%);border:7px dashed var(--cal-color,#FF7A6B);background:color-mix(in srgb,var(--cal-color,#FF7A6B) 13%,white);display:flex;align-items:center;justify-content:center;font-size:58px;transition:transform .15s,box-shadow .15s;}
+  #calibrationTarget.stable{box-shadow:0 0 0 10px rgba(255,255,255,.75),0 0 28px var(--cal-color,#FF7A6B);transform:translate(-50%,-50%) scale(1.05);}
+  #calibrationCanvas{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;}
+  #calibrationProgressWrap{height:14px;background:#eee;border-radius:999px;overflow:hidden;margin:8px 0 10px;}
+  #calibrationProgress{height:100%;width:0;background:var(--cal-color,#FF7A6B);transition:width .08s linear;}
+  #calibrationStatus{font-family:'Baloo 2',sans-serif;font-size:18px;min-height:28px;}
+  #calibrationHint{font-size:12px;color:#777;margin:4px 0 14px;}
+  #skipCalibrationBtn{border:none;background:#f1f1f1;color:#666;border-radius:999px;padding:9px 16px;font-family:'Nunito',sans-serif;font-weight:800;cursor:pointer;}
+  #calibrationSummary{font-size:13px;color:#777;margin-top:10px;}
+  .hidden{ display:none !important; }
+
+  /* ---- character container (holds default SVG or a custom uploaded image) ---- */
+  .character{ width:92px; height:92px; margin-bottom:-14px; }
+  .character svg, .character img{ width:100%; height:100%; object-fit:contain; display:block; }
+  .character img{ border-radius:50%; background:white; }
+
+  /* ---- customize-images button + modal ---- */
+  .ghostBtn{
+    font-family:'Baloo 2', sans-serif; font-weight:700;
+    font-size:clamp(13px,1.9vw,16px);
+    background:rgba(255,255,255,0.9); color:var(--plum);
+    border:none; padding:6px 16px; border-radius:999px;
+    box-shadow:0 4px 0 rgba(0,0,0,0.12); cursor:pointer;
+  }
+  .ghostBtn:active{ transform:translateY(3px); box-shadow:none; }
+  #customizeModal{
+    position:fixed; inset:0; background:rgba(46,42,74,0.92);
+    z-index:1200; display:flex; align-items:center; justify-content:center; padding:20px;
+  }
+  #customizeModal.hidden{ display:none !important; }
+  #customizePanel{
+    background:white; border-radius:22px; padding:22px 26px 18px;
+    max-width:640px; width:100%; max-height:88vh; overflow-y:auto;
+  }
+  #customizePanel h2{
+    font-family:'Baloo 2',sans-serif; font-size:22px; margin:0 0 4px; text-align:center;
+  }
+  #customizePanel .subtext{ text-align:center; font-size:13.5px; color:#555; margin-bottom:16px; }
+  .slotGrid{ display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:8px; }
+  @media (max-width:480px){ .slotGrid{ grid-template-columns:1fr; } }
+  .slotGroupTitle{
+    grid-column:1 / -1; font-family:'Baloo 2',sans-serif; font-weight:700;
+    font-size:15px; margin:10px 0 -4px; color:var(--plum);
+  }
+  .slot{
+    display:flex; align-items:center; gap:10px;
+    border:2px solid #eee; border-radius:14px; padding:8px 10px;
+  }
+  .slotThumb{
+    width:52px; height:52px; border-radius:10px; background:#f2f2f2;
+    display:flex; align-items:center; justify-content:center; font-size:26px;
+    overflow:hidden; flex-shrink:0;
+  }
+  .slotThumb img{ width:100%; height:100%; object-fit:contain; }
+  .slotBody{ flex:1; min-width:0; }
+  .slotBody label{ display:block; font-size:13px; font-weight:700; margin-bottom:4px; }
+  .slotBody input[type=file]{ font-size:11px; max-width:100%; }
+  .slotClear{
+    border:none; background:#f2f2f2; color:#777; border-radius:8px;
+    font-size:11px; padding:4px 8px; cursor:pointer; margin-top:4px;
+  }
+  .slotClear.hidden{ display:none; }
+  #customizeFooter{
+    display:flex; justify-content:space-between; align-items:center; gap:10px;
+    margin-top:18px; flex-wrap:wrap;
+  }
+  #resetImagesBtn{
+    border:none; background:#f2f2f2; color:#555; font-family:'Nunito',sans-serif;
+    font-weight:700; font-size:13px; padding:9px 16px; border-radius:999px; cursor:pointer;
+  }
+
+  /* ---- player count picker (start overlay) ---- */
+  #playerCountRow{
+    display:flex; align-items:center; justify-content:center; gap:8px;
+    margin-bottom:6px; flex-wrap:wrap;
+  }
+  #playerCountRow .setupLabel{ color:white; font-family:'Baloo 2',sans-serif; font-weight:700; font-size:14px; }
+  .countBtn{
+    font-family:'Baloo 2',sans-serif; font-weight:800; font-size:16px;
+    width:38px; height:38px; border-radius:50%; border:none; cursor:pointer;
+    background:rgba(255,255,255,0.25); color:white;
+  }
+  .countBtn.active{ background:var(--sun); color:var(--plum); box-shadow:0 3px 0 #d9ab2c; }
+  #modeExplain{ color:#e6e6f0; font-size:13px; max-width:420px; margin:0 auto 16px; min-height:32px; }
+  #playerSwatches{ display:flex; justify-content:center; gap:6px; margin-bottom:10px; }
+  .swatch{ width:20px; height:20px; border-radius:50%; border:2px solid white; }
+
+  /* ---- in-game scoreboard ---- */
+  #scoreboardRow{
+    display:flex; justify-content:center; gap:8px; flex-wrap:wrap;
+    margin:0 0 8px; position:relative; z-index:1;
+  }
+  .playerChip{
+    font-family:'Baloo 2',sans-serif; font-weight:800; font-size:13px; color:white;
+    padding:5px 14px; border-radius:999px; box-shadow:0 3px 0 rgba(0,0,0,0.15);
+    opacity:0.55; transition:opacity .15s, transform .15s;
+  }
+  .playerChip.activeChip{ opacity:1; transform:scale(1.12); box-shadow:0 3px 0 rgba(0,0,0,0.3), 0 0 0 3px white; }
+  #turnPill{ display:none; }
+  #turnPill.show{ display:inline-block; }
+  #nextPlayerBtn{ display:none; }
+  #nextPlayerBtn.show{ display:inline-block; }
+</style>
+</head>
+<body>
+
+<div id="startOverlay">
+  <h2>🧺 Fruit Basket Sort!</h2>
+  <p>Help Hippo, Frog and Panda catch their fruit! Move your hand to steer the paw cursor. Close your hand over a fruit and hold still to pick it up, then carry it to the matching basket and open your hand to drop it. Tap below, then allow camera access. Use Chrome or Safari (not an in-app browser).</p>
+
+  <div id="playerCountRow">
+    <span class="setupLabel">Players:</span>
+    <button class="countBtn" data-n="2">2</button>
+    <button class="countBtn" data-n="3">3</button>
+    <button class="countBtn" data-n="4">4</button>
+    <button class="countBtn" data-n="5">5</button>
+  </div>
+  <div id="playerSwatches"></div>
+  <div id="modeExplain"></div>
+
+  <button id="startBtn" class="bigBtn">▶ Start Camera</button>
+  <button id="customizeBtnStart" class="ghostBtn" style="margin-top:14px;">🖼️ Use my own fruit &amp; character pictures</button>
+</div>
+
+<div id="calibrationOverlay" class="hidden" aria-live="polite">
+  <div id="calibrationPanel">
+    <div id="calibrationTitle">🖐 Player 1</div>
+    <div id="calibrationInstruction">Put your hand inside the circle and hold still.</div>
+    <div id="calibrationStage">
+      <canvas id="calibrationCanvas"></canvas>
+      <div id="calibrationTarget">🖐</div>
+    </div>
+    <div id="calibrationProgressWrap"><div id="calibrationProgress"></div></div>
+    <div id="calibrationStatus">Get ready...</div>
+    <div id="calibrationHint">This calibrates your hand's identity and movement sensitivity.</div>
+    <button id="skipCalibrationBtn">Start without calibration</button>
+    <div id="calibrationSummary"></div>
+  </div>
+</div>
+
+<div id="winOverlay" class="hidden">
+  <h2>🎉 All sorted!</h2>
+  <div id="winnerLine" style="font-family:'Baloo 2',sans-serif; font-size:22px; color:var(--sun); margin-bottom:10px;"></div>
+  <div id="finalScore" style="margin-bottom:14px; font-family:'Baloo 2',sans-serif; font-size:17px;"></div>
+  <p>Great job sorting every fruit into the right basket!</p>
+  <button id="againBtn" class="bigBtn">🔁 Play Again</button>
+</div>
+
+<div id="customizeModal" class="hidden">
+  <div id="customizePanel">
+    <h2>🖼️ Use Your Own Pictures</h2>
+    <div class="subtext">Upload a picture for any fruit or character. Anything you don't upload keeps the default look. Pictures are saved on this device for next time.</div>
+
+    <div class="slotGrid">
+      <div class="slotGroupTitle">Fruits</div>
+      <div class="slot">
+        <div class="slotThumb" id="thumb_fruit_apple">🍎</div>
+        <div class="slotBody">
+          <label>Apple</label>
+          <input type="file" accept="image/*" data-kind="fruit" data-type="apple">
+          <button class="slotClear hidden" data-kind="fruit" data-type="apple">✕ Remove</button>
+        </div>
+      </div>
+      <div class="slot">
+        <div class="slotThumb" id="thumb_fruit_orange">🍊</div>
+        <div class="slotBody">
+          <label>Orange</label>
+          <input type="file" accept="image/*" data-kind="fruit" data-type="orange">
+          <button class="slotClear hidden" data-kind="fruit" data-type="orange">✕ Remove</button>
+        </div>
+      </div>
+      <div class="slot">
+        <div class="slotThumb" id="thumb_fruit_banana">🍌</div>
+        <div class="slotBody">
+          <label>Banana</label>
+          <input type="file" accept="image/*" data-kind="fruit" data-type="banana">
+          <button class="slotClear hidden" data-kind="fruit" data-type="banana">✕ Remove</button>
+        </div>
+      </div>
+
+      <div class="slotGroupTitle">Characters</div>
+      <div class="slot">
+        <div class="slotThumb" id="thumb_char_apple">🦛</div>
+        <div class="slotBody">
+          <label>Apple-basket character (Hippo)</label>
+          <input type="file" accept="image/*" data-kind="char" data-type="apple">
+          <button class="slotClear hidden" data-kind="char" data-type="apple">✕ Remove</button>
+        </div>
+      </div>
+      <div class="slot">
+        <div class="slotThumb" id="thumb_char_orange">🐸</div>
+        <div class="slotBody">
+          <label>Orange-basket character (Frog)</label>
+          <input type="file" accept="image/*" data-kind="char" data-type="orange">
+          <button class="slotClear hidden" data-kind="char" data-type="orange">✕ Remove</button>
+        </div>
+      </div>
+      <div class="slot">
+        <div class="slotThumb" id="thumb_char_banana">🐼</div>
+        <div class="slotBody">
+          <label>Banana-basket character (Panda)</label>
+          <input type="file" accept="image/*" data-kind="char" data-type="banana">
+          <button class="slotClear hidden" data-kind="char" data-type="banana">✕ Remove</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="customizeFooter">
+      <button id="resetImagesBtn">Reset all to defaults</button>
+      <button id="customizeDoneBtn" class="bigBtn" style="font-size:16px; padding:10px 24px;">Done</button>
+    </div>
+  </div>
+</div>
+
+<div id="sun"></div>
+<div class="cloud" id="cloud1"></div>
+<div class="cloud" id="cloud2"></div>
+<h1>🧺 Fruit Basket Sort</h1>
+<div id="statusRow">
+  <span class="pill" id="status">Tap "Start Camera" to begin</span>
+  <span class="pill" id="remaining">Left: 9</span>
+  <span class="pill" id="turnPill"></span>
+  <button id="nextPlayerBtn" class="ghostBtn">➡️ Next Player</button>
+  <button id="customizeBtnGame" class="ghostBtn">🖼️ Customize Images</button>
+</div>
+<div id="scoreboardRow"></div>
+
+<div id="stage">
+  <div id="grassStrip"></div>
+
+  <!-- fruits get injected here dynamically -->
+
+  <div id="baskets">
+    <div class="basketWrap" id="wrapApple">
+      <div class="character" id="char_apple">
+      <svg viewBox="0 0 100 100"><!-- Hippo -->
+        <ellipse cx="50" cy="60" rx="34" ry="26" fill="#9B8FD4"/>
+        <ellipse cx="30" cy="30" rx="12" ry="11" fill="#9B8FD4"/>
+        <ellipse cx="70" cy="30" rx="12" ry="11" fill="#9B8FD4"/>
+        <ellipse cx="30" cy="31" rx="6" ry="5.5" fill="#7A6DC0"/>
+        <ellipse cx="70" cy="31" rx="6" ry="5.5" fill="#7A6DC0"/>
+        <ellipse cx="50" cy="55" rx="26" ry="20" fill="#B3A8E0"/>
+        <circle cx="40" cy="48" r="3" fill="#2E2A4A"/>
+        <circle cx="60" cy="48" r="3" fill="#2E2A4A"/>
+        <ellipse cx="50" cy="66" rx="14" ry="8" fill="#7A6DC0"/>
+        <path d="M42 68 Q50 74 58 68" stroke="#2E2A4A" stroke-width="2" fill="none" stroke-linecap="round"/>
+      </svg>
+      </div>
+      <div class="basket">
+        <svg viewBox="0 0 180 96" width="100%" height="100%">
+          <path d="M20 30 L160 30 L140 90 L40 90 Z" fill="#B5793B" stroke="#8C5A26" stroke-width="3"/>
+          <path d="M28 40 L152 40 M32 55 L148 55 M36 70 L144 70" stroke="#8C5A26" stroke-width="3" fill="none"/>
+          <path d="M18 30 Q90 12 162 30" stroke="#8C5A26" stroke-width="5" fill="none"/>
+        </svg>
+        <div class="ribbon">🍎</div>
+      </div>
+      <div class="basketLabel">Hippo's Apples</div>
+    </div>
+
+    <div class="basketWrap" id="wrapOrange">
+      <div class="character" id="char_orange">
+      <svg viewBox="0 0 100 100"><!-- Frog -->
+        <ellipse cx="50" cy="62" rx="30" ry="24" fill="#6FCF7A"/>
+        <circle cx="32" cy="30" r="15" fill="white" stroke="#E14B3E" stroke-width="4"/>
+        <circle cx="68" cy="30" r="15" fill="white" stroke="#E14B3E" stroke-width="4"/>
+        <circle cx="32" cy="30" r="6" fill="#2E2A4A"/>
+        <circle cx="68" cy="30" r="6" fill="#2E2A4A"/>
+        <rect x="15" y="27" width="70" height="4" fill="#E14B3E"/>
+        <ellipse cx="50" cy="60" rx="20" ry="14" fill="#8CE096"/>
+        <path d="M38 68 Q50 76 62 68" stroke="#2E2A4A" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+      </svg>
+      </div>
+      <div class="basket">
+        <svg viewBox="0 0 180 96" width="100%" height="100%">
+          <path d="M20 30 L160 30 L140 90 L40 90 Z" fill="#B5793B" stroke="#8C5A26" stroke-width="3"/>
+          <path d="M28 40 L152 40 M32 55 L148 55 M36 70 L144 70" stroke="#8C5A26" stroke-width="3" fill="none"/>
+          <path d="M18 30 Q90 12 162 30" stroke="#8C5A26" stroke-width="5" fill="none"/>
+        </svg>
+        <div class="ribbon">🍊</div>
+      </div>
+      <div class="basketLabel">Frog's Oranges</div>
+    </div>
+
+    <div class="basketWrap" id="wrapBanana">
+      <div class="character" id="char_banana">
+      <svg viewBox="0 0 100 100"><!-- Panda -->
+        <circle cx="50" cy="55" r="32" fill="white" stroke="#222" stroke-width="2"/>
+        <circle cx="24" cy="26" r="11" fill="#222"/>
+        <circle cx="76" cy="26" r="11" fill="#222"/>
+        <ellipse cx="34" cy="48" rx="10" ry="12" fill="#222"/>
+        <ellipse cx="66" cy="48" rx="10" ry="12" fill="#222"/>
+        <circle cx="34" cy="48" r="3.5" fill="white"/>
+        <circle cx="66" cy="48" r="3.5" fill="white"/>
+        <ellipse cx="50" cy="62" rx="7" ry="5" fill="#222"/>
+        <path d="M40 68 Q50 74 60 68" stroke="#222" stroke-width="2" fill="none" stroke-linecap="round"/>
+      </svg>
+      </div>
+      <div class="basket">
+        <svg viewBox="0 0 180 96" width="100%" height="100%">
+          <path d="M20 30 L160 30 L140 90 L40 90 Z" fill="#B5793B" stroke="#8C5A26" stroke-width="3"/>
+          <path d="M28 40 L152 40 M32 55 L148 55 M36 70 L144 70" stroke="#8C5A26" stroke-width="3" fill="none"/>
+          <path d="M18 30 Q90 12 162 30" stroke="#8C5A26" stroke-width="5" fill="none"/>
+        </svg>
+        <div class="ribbon">🍌</div>
+      </div>
+      <div class="basketLabel">Panda's Bananas</div>
+    </div>
+  </div>
+
+  <div class="cursor" id="cursorA" style="--cursor-color:#FF7A6B;"><span class="cursorTag" id="tagA">P1</span></div>
+  <div class="cursor hidden" id="cursorB" style="--cursor-color:#4FC3F7;"><span class="cursorTag" id="tagB">P2</span></div>
+  <div class="cursor hidden" id="cursorC" style="--cursor-color:#9575CD;"><span class="cursorTag" id="tagC">P3</span></div>
+  <div class="cursor hidden" id="cursorD" style="--cursor-color:#66BB6A;"><span class="cursorTag" id="tagD">P4</span></div>
+  <div class="cursor hidden" id="cursorE" style="--cursor-color:#FFB74D;"><span class="cursorTag" id="tagE">P5</span></div>
+</div>
+
+<div id="legend">
+  <b>How to play:</b> move your hand to steer the paw · close your hand over a fruit and hold still for a moment to pick it up · keep your hand closed while you carry it to the matching basket · open your hand to drop it in. Drop a fruit in the wrong basket and it'll bounce back out — try again! Everyone plays at the same time — each hand shown to the camera gets locked to its own colored cursor, even if hands cross paths. (You can also click-and-drag with a mouse to test.)
+</div>
+
+<div id="camWrap">
+  <video id="video" autoplay playsinline muted></video>
+  <canvas id="overlay"></canvas>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core@4.11.0/dist/tf-core.min.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-converter@4.11.0/dist/tf-converter.min.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl@4.11.0/dist/tf-backend-webgl.min.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1646424915/hands.min.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/hand-pose-detection@2.0.1/dist/hand-pose-detection.min.js" crossorigin="anonymous"></script>
+
+<script>
+/* =========================================================================
+   HandTracker — reusable engine, multi-hand aware.
+   Tracks any number of hands independently, keyed by a caller-supplied
+   "hand" id. Callers now pass a persistent PLAYER SLOT id (assigned by
+   HandIdentityTracker below) rather than MediaPipe's raw handedness label,
+   so the same physical hand keeps the same cursor/slot across frames.
+   Emits: move, down, up, click, dragstart, dragmove, dragend, swipeleft, swiperight
+   ========================================================================= */
+const HandTracker = (() => {
+  const listeners = {};
+  function on(evt, fn){ (listeners[evt] = listeners[evt]||[]).push(fn); }
+  function emit(evt, data){ (listeners[evt]||[]).forEach(fn => fn(data)); }
+
+  const SMOOTH = 0.32;
+  const HOLD_STILL_MS = 350;
+  const HOLD_STILL_DIST = 0.03;
+  const SWIPE_WINDOW_MS = 220;
+  const SWIPE_MIN_DIST = 0.28;
+  const MOVE_DEADZONE = 0.0018;
+
+  const states = new Map();
+  function stateFor(key){
+    if(!states.has(key)) states.set(key, {
+      smoothX: 0.5, smoothY: 0.5, rawX: null, rawY: null,
+      handOpen: true, closeStartTime: null, isDragging: false,
+      stillAnchor: null, posHistory: [], swipeCooldownUntil: 0,
+      initialized: false
+    });
+    return states.get(key);
+  }
+
+  function curlScore(landmarks){
+    const wrist = landmarks[0], tips=[8,12,16,20], knuckles=[5,9,13,17];
+    let openCount=0;
+    for(let i=0;i<4;i++){
+      const tip=landmarks[tips[i]], knuckle=landmarks[knuckles[i]];
+      const dTip=Math.hypot(tip.x-wrist.x,tip.y-wrist.y);
+      const dKnuckle=Math.hypot(knuckle.x-wrist.x,knuckle.y-wrist.y);
+      if(dTip>dKnuckle*1.15) openCount++;
+    }
+    return openCount>=3;
+  }
+
+  function processOneHand(key, landmarksNorm, now, sensitivity=1){
+    const st=stateFor(key);
+    const palmIdx=[0,5,9,13,17];
+    let px=0,py=0;
+    palmIdx.forEach(i=>{px+=landmarksNorm[i].x;py+=landmarksNorm[i].y;});
+    px/=palmIdx.length; py/=palmIdx.length;
+
+    if(!st.initialized || st.rawX===null){
+      st.rawX=px; st.rawY=py; st.smoothX=px; st.smoothY=py; st.initialized=true;
+    } else {
+      let dx=px-st.rawX, dy=py-st.rawY;
+      st.rawX=px; st.rawY=py;
+      if(Math.abs(dx)<MOVE_DEADZONE) dx=0;
+      if(Math.abs(dy)<MOVE_DEADZONE) dy=0;
+      const scaledX=dx*sensitivity, scaledY=dy*sensitivity;
+      st.smoothX += scaledX*SMOOTH;
+      st.smoothY += scaledY*SMOOTH;
+      st.smoothX=Math.max(0.015,Math.min(0.985,st.smoothX));
+      st.smoothY=Math.max(0.015,Math.min(0.985,st.smoothY));
+    }
+    emit('move',{hand:key,x:st.smoothX,y:st.smoothY,sensitivity});
+
+    const nowOpen=curlScore(landmarksNorm);
+    if(st.handOpen&&!nowOpen){
+      st.handOpen=false; st.closeStartTime=now; st.stillAnchor={x:st.smoothX,y:st.smoothY,t:now};
+      emit('down',{hand:key,x:st.smoothX,y:st.smoothY});
+    } else if(!st.handOpen&&nowOpen){
+      st.handOpen=true;
+      const heldMs=now-(st.closeStartTime||now);
+      emit('up',{hand:key,x:st.smoothX,y:st.smoothY});
+      if(st.isDragging){st.isDragging=false;emit('dragend',{hand:key,x:st.smoothX,y:st.smoothY});}
+      else if(heldMs<HOLD_STILL_MS) emit('click',{hand:key,x:st.smoothX,y:st.smoothY});
+      st.stillAnchor=null;
+    } else if(!st.handOpen){
+      if(!st.isDragging){
+        if(st.stillAnchor){
+          const dist=Math.hypot(st.smoothX-st.stillAnchor.x,st.smoothY-st.stillAnchor.y);
+          if(dist>HOLD_STILL_DIST) st.stillAnchor={x:st.smoothX,y:st.smoothY,t:now};
+          else if(now-st.stillAnchor.t>HOLD_STILL_MS){st.isDragging=true;emit('dragstart',{hand:key,x:st.smoothX,y:st.smoothY});}
+        }
+      } else emit('dragmove',{hand:key,x:st.smoothX,y:st.smoothY});
+    }
+
+    const wrist=landmarksNorm[0];
+    st.posHistory.push({x:wrist.x,t:now});
+    st.posHistory=st.posHistory.filter(p=>now-p.t<=SWIPE_WINDOW_MS);
+    if(now>st.swipeCooldownUntil&&st.posHistory.length>2){
+      const oldest=st.posHistory[0], dx=wrist.x-oldest.x;
+      if(Math.abs(dx)>SWIPE_MIN_DIST){
+        st.swipeCooldownUntil=now+600; st.posHistory=[];
+        emit(dx>0?'swiperight':'swipeleft',{hand:key,x:st.smoothX,y:st.smoothY});
+      }
+    }
+  }
+
+  function processHands(hands,now){
+    const seen=new Set();
+    hands.forEach(h=>{seen.add(h.key);processOneHand(h.key,h.landmarks,now,h.sensitivity||1);});
+    states.forEach((st,key)=>{
+      if(seen.has(key)) return;
+      if(st.isDragging){st.isDragging=false;emit('dragend',{hand:key,x:st.smoothX,y:st.smoothY});}
+      st.handOpen=true; st.stillAnchor=null; st.posHistory=[]; st.rawX=null; st.rawY=null; st.initialized=false;
+    });
+  }
+  function noHandVisible(){
+    states.forEach((st,key)=>{
+      if(st.isDragging){st.isDragging=false;emit('dragend',{hand:key,x:st.smoothX,y:st.smoothY});}
+      st.handOpen=true;st.stillAnchor=null;st.posHistory=[];st.rawX=null;st.rawY=null;st.initialized=false;
+    });
+  }
+  return {on,processHands,noHandVisible};
+})();
+
+/* =========================================================================
+   HandIdentityTracker — locks each physical hand to a fixed player slot
+   (A, B, C, D, E) using spatial continuity frame-to-frame, instead of
+   MediaPipe's raw left/right handedness label.
+
+   Why not use handedness directly? It's a per-frame guess based on hand
+   appearance alone: two different kids both showing their right hand get
+   the SAME label, so they'd collide onto one slot. It can also flicker
+   mid-crossing, causing two hands to instantly swap identities. Spatial
+   tracking avoids both — a hand can only "teleport" so far in 1/30th of a
+   second, so matching each detection to whichever tracked slot was
+   physically closest to it last frame keeps identities stable through
+   crossovers, and a short grace window keeps a slot reserved if that
+   player's hand briefly leaves the camera view.
+   ========================================================================= */
+const HandIdentityTracker = (() => {
+  const GRACE_MS=2200;
+  const MAX_JUMP=0.48;
+  const AMBIGUITY_DIST=0.10;
+  const slots=[];
+
+  function reset(slotIds){
+    slots.length=0;
+    slotIds.forEach(slot=>slots.push({slot,x:null,y:null,px:null,py:null,vx:0,vy:0,lastSeen:-Infinity,confidence:0,ambiguous:false,dragging:false,profile:null}));
+  }
+  function setProfile(slotId,profile){const s=slots.find(x=>x.slot===slotId);if(s){s.profile=profile;s.x=profile.palm?.x??null;s.y=profile.palm?.y??null;s.px=s.x;s.py=s.y;s.vx=0;s.vy=0;s.lastSeen=performance.now();s.confidence=.9;}}
+  function getProfiles(){return slots.map(s=>s.profile);}
+  function setDragging(slotId,v){const s=slots.find(x=>x.slot===slotId);if(s)s.dragging=!!v;}
+  function dist(a,b){return Math.hypot(a.x-b.x,a.y-b.y);}
+  function handSize(l){
+    const wrist=l[0], ids=[5,9,13,17];
+    return ids.reduce((sum,i)=>sum+Math.hypot(l[i].x-wrist.x,l[i].y-wrist.y),0)/ids.length;
+  }
+  function normalizedGeometry(l){const w=l[0],scale=Math.max(handSize(l),0.01);return l.map(p=>({x:(p.x-w.x)/scale,y:(p.y-w.y)/scale}));}
+  function geomCost(profile,l){
+    if(!profile||!profile.geometry) return 0.25;
+    const g=normalizedGeometry(l),ids=[0,5,9,13,17,8,12,16,20];
+    let c=0; ids.forEach(i=>{c+=Math.hypot(g[i].x-profile.geometry[i].x,g[i].y-profile.geometry[i].y);});
+    return Math.min(1,c/ids.length/0.55);
+  }
+  function assign(detections,now){
+    const results=new Array(detections.length).fill(null);
+    if(!detections.length) return results;
+    const live=slots.map((s,si)=>({s,si})).filter(({s})=>s.x!==null && now-s.lastSeen<=GRACE_MS);
+    const n=Math.min(live.length,detections.length);
+    const candidateMap=new Map();
+    live.forEach(({s,si})=>detections.forEach((d,di)=>{
+      const pred={x:s.x+s.vx,y:s.y+s.vy};
+      const pd=dist(d,pred), cd=dist(d,{x:s.x,y:s.y});
+      const jump=Math.min(1,cd/Math.max(MAX_JUMP,0.001));
+      const pc=Math.min(1,pd/Math.max(MAX_JUMP,0.001));
+      const gc=geomCost(s.profile,d.landmarks);
+      const sc=s.profile?Math.min(1,Math.abs(handSize(d.landmarks)-s.profile.handSize)/Math.max(s.profile.handSize,0.01)):0.3;
+      const cost=pc*0.42+jump*0.28+gc*0.20+sc*0.10;
+      candidateMap.set(si+':'+di,{si,di,cost,pd,cd});
+    }));
+    // Exhaustive assignment for <=5 players gives a true global minimum.
+    const liveCount=live.length;
+    let best=null;
+    function rec(i,used,total,picks){
+      if(i===liveCount){if(!best||total<best.total)best={total,picks:picks.slice()};return;}
+      const item=live[i];
+      for(let di=0;di<detections.length;di++){
+        if(used.has(di))continue;
+        const c=candidateMap.get(item.si+':'+di);
+        if(!c)continue;
+        if(c.cd>MAX_JUMP && now-item.s.lastSeen<180)continue;
+        used.add(di);picks.push({si:item.si,di,cost:c.cost});rec(i+1,used,total+c.cost,picks);picks.pop();used.delete(di);
+      }
+      // allow this live slot to remain unmatched
+      rec(i+1,used,total+0.38,picks);
+    }
+    rec(0,new Set(),0,[]);
+    const claimedD=new Set(),claimedS=new Set();
+    if(best){
+      best.picks.forEach(p=>{
+        const s=slots[p.si];
+        if(claimedD.has(p.di)||claimedS.has(p.si))return;
+        claimedD.add(p.di);claimedS.add(p.si);
+        const d=detections[p.di];
+        const wasClose=best.picks.some(q=>q!==p&&q.di!==p.di&&Math.hypot(detections[q.di].x-d.x,detections[q.di].y-d.y)<AMBIGUITY_DIST);
+        s.ambiguous=wasClose;
+        s.px=s.x;s.py=s.y;
+        const dt=Math.max(16,now-s.lastSeen);
+        const rawV={x:(d.x-s.x)/(dt/33),y:(d.y-s.y)/(dt/33)};
+        s.vx=s.vx*0.55+rawV.x*0.45;s.vy=s.vy*0.55+rawV.y*0.45;
+        s.x=d.x;s.y=d.y;s.lastSeen=now;s.confidence=Math.max(0.2,Math.min(1,s.confidence+0.08-(wasClose?0.15:0)));
+        results[p.di]=s.slot;
+      });
+    }
+    // Claim remaining detections only for never-seen or expired slots.
+    detections.forEach((d,di)=>{
+      if(results[di])return;
+      let s=slots.find(x=>!claimedS.has(slots.indexOf(x))&&(x.x===null||now-x.lastSeen>GRACE_MS));
+      if(!s)return;
+      const si=slots.indexOf(s);claimedS.add(si);claimedD.add(di);
+      s.x=d.x;s.y=d.y;s.px=d.x;s.py=d.y;s.vx=0;s.vy=0;s.lastSeen=now;s.confidence=0.55;s.ambiguous=false;
+      results[di]=s.slot;
+    });
+    return results;
+  }
+  function sensitivityFor(slotId,currentSize){
+    const s=slots.find(x=>x.slot===slotId); if(!s||!s.profile||!currentSize)return 1;
+    const ratio=s.profile.handSize/currentSize;
+    const curved=Math.pow(Math.max(0.5,Math.min(2.0,ratio)),0.72);
+    return Math.max(0.72,Math.min(2.35,curved));
+  }
+  function snapshot(){return slots.map(s=>({slot:s.slot,x:s.x,y:s.y,confidence:s.confidence,ambiguous:s.ambiguous,profile:s.profile}));}
+  return {reset,setProfile,getProfiles,setDragging,assign,handSize,sensitivityFor,snapshot};
+})();
+
+/* =========================================================================
+   Fruit Basket Sort — game logic
+   ========================================================================= */
+const statusEl = document.getElementById('status');
+const remainingEl = document.getElementById('remaining');
+const stage = document.getElementById('stage');
+const finalScoreEl = document.getElementById('finalScore');
+const winnerLineEl = document.getElementById('winnerLine');
+const winOverlay = document.getElementById('winOverlay');
+const scoreboardRow = document.getElementById('scoreboardRow');
+const turnPillEl = document.getElementById('turnPill');
+const nextPlayerBtn = document.getElementById('nextPlayerBtn');
+
+const cursorEls = {
+  A: document.getElementById('cursorA'),
+  B: document.getElementById('cursorB'),
+  C: document.getElementById('cursorC'),
+  D: document.getElementById('cursorD'),
+  E: document.getElementById('cursorE'),
+};
+const tagEls = {
+  A: document.getElementById('tagA'),
+  B: document.getElementById('tagB'),
+  C: document.getElementById('tagC'),
+  D: document.getElementById('tagD'),
+  E: document.getElementById('tagE'),
+};
+
+const FRUITS = { apple: '🍎', orange: '🍊', banana: '🍌' };
+const basketEls = {
+  apple:  document.getElementById('wrapApple').querySelector('.basket'),
+  orange: document.getElementById('wrapOrange').querySelector('.basket'),
+  banana: document.getElementById('wrapBanana').querySelector('.basket'),
+};
+
+/* =========================================================================
+   Multiplayer — 2 to 5 players, each with a fixed color.
+   2 players: both hands tracked at once (true simultaneous mode) — one
+   physical hand per player, mapped to cursor slot A or B.
+   3-5 players: only one hand is listened to at a time (slot A only) and
+   players take turns; passing the turn recolors slot A's cursor.
+   ========================================================================= */
+/* =========================================================================
+   Multiplayer — 2 to 5 players, each with a fixed color, ALL playing at
+   the same time. Every hand shown to the camera is locked to a player
+   slot by HandIdentityTracker (spatial continuity, not handedness), so
+   crossing hands or a hand briefly leaving frame won't swap players.
+   ========================================================================= */
+const PLAYER_COLORS = ['#FF7A6B', '#4FC3F7', '#9575CD', '#66BB6A', '#FFB74D'];
+const SLOT_ORDER = ['A', 'B', 'C', 'D', 'E'];
+let numPlayers = 2;
+const simultaneousMode = true; // every supported player count (2-5) now plays at once
+let currentPlayerIndex = 0;    // unused now that all counts are simultaneous; kept for min diff
+let playerScores = [];
+let calibrationProfiles = {};
+let calibrationSkipped = false;
+
+function slotForHandKey(key){ return key; } // HandIdentityTracker already hands us the final slot id
+
+function playerIndexForSlot(slot){ return SLOT_ORDER.indexOf(slot); }
+
+function setupPlayers(){
+  playerScores = new Array(numPlayers).fill(0);
+  currentPlayerIndex = 0;
+  const activeSlots = SLOT_ORDER.slice(0, numPlayers);
+  HandIdentityTracker.reset(activeSlots);
+  activeSlots.forEach(slot => { if(calibrationProfiles[slot]) HandIdentityTracker.setProfile(slot, calibrationProfiles[slot]); });
+
+  SLOT_ORDER.forEach((slot, i) => {
+    if(i < numPlayers){
+      cursorEls[slot].style.setProperty('--cursor-color', PLAYER_COLORS[i]);
+      tagEls[slot].textContent = 'P' + (i + 1);
+      cursorEls[slot].classList.remove('hidden');
+    } else {
+      cursorEls[slot].classList.add('hidden');
+    }
+  });
+  turnPillEl.classList.remove('show');
+  nextPlayerBtn.classList.remove('show');
+  MAX_ON_SCREEN = Math.max(4, numPlayers + 2);
+  renderScoreboard();
+}
+
+function applyTurnColor(){
+  const color = PLAYER_COLORS[currentPlayerIndex];
+  cursorEls.A.style.setProperty('--cursor-color', color);
+  tagEls.A.textContent = 'P' + (currentPlayerIndex + 1);
+  turnPillEl.textContent = '🎯 Player ' + (currentPlayerIndex + 1) + "'s turn";
+  turnPillEl.style.background = color;
+  turnPillEl.style.color = 'white';
+}
+
+function advanceTurn(){
+  if(simultaneousMode) return;
+  currentPlayerIndex = (currentPlayerIndex + 1) % numPlayers;
+  applyTurnColor();
+  renderScoreboard();
+}
+
+function renderScoreboard(){
+  scoreboardRow.innerHTML = '';
+  for(let i = 0; i < numPlayers; i++){
+    const chip = document.createElement('span');
+    chip.className = 'playerChip';
+    chip.style.background = PLAYER_COLORS[i];
+    chip.textContent = 'P' + (i + 1) + ': ' + playerScores[i];
+    if(simultaneousMode || i === currentPlayerIndex) chip.classList.add('activeChip');
+    scoreboardRow.appendChild(chip);
+  }
+}
+
+/* =========================================================================
+   Custom images — let a teacher/user upload their own pictures for the
+   three fruits and the three basket characters. Stored as data URLs in
+   localStorage so they persist for next time on this device.
+   ========================================================================= */
+const CUSTOM_IMG_STORAGE_KEY = 'fruitBasketSort_customImages_v1';
+let customFruitImages = {};     // {apple: dataURL, orange: dataURL, banana: dataURL}
+let customCharacterImages = {}; // {apple: dataURL, orange: dataURL, banana: dataURL}
+
+// Remember each character's original hand-drawn SVG so "Reset" can restore it.
+const defaultCharacterHTML = {
+  apple:  document.getElementById('char_apple').innerHTML,
+  orange: document.getElementById('char_orange').innerHTML,
+  banana: document.getElementById('char_banana').innerHTML,
+};
+
+function loadCustomImages(){
+  try{
+    const raw = localStorage.getItem(CUSTOM_IMG_STORAGE_KEY);
+    if(raw){
+      const parsed = JSON.parse(raw);
+      customFruitImages = parsed.fruit || {};
+      customCharacterImages = parsed.character || {};
+    }
+  }catch(e){ /* localStorage unavailable — just start fresh, non-fatal */ }
+}
+
+function saveCustomImages(){
+  try{
+    localStorage.setItem(CUSTOM_IMG_STORAGE_KEY, JSON.stringify({
+      fruit: customFruitImages,
+      character: customCharacterImages
+    }));
+  }catch(e){ /* storage full or unavailable — game still works this session */ }
+}
+
+function applyFruitVisual(el, type){
+  const img = customFruitImages[type];
+  if(img){
+    el.style.backgroundImage = 'url(' + img + ')';
+    el.style.backgroundSize = '76%';
+    el.style.backgroundRepeat = 'no-repeat';
+    el.style.backgroundPosition = 'center';
+    el.textContent = '';
+  } else {
+    el.style.backgroundImage = '';
+    el.textContent = FRUITS[type];
+  }
+}
+
+function refreshActiveFruitVisuals(type){
+  activeFruits.forEach((data, el) => {
+    if(!type || data.type === type) applyFruitVisual(el, data.type);
+  });
+}
+
+function applyCharacterImage(type){
+  const container = document.getElementById('char_' + type);
+  const img = customCharacterImages[type];
+  container.innerHTML = img ? ('<img src="' + img + '" alt="custom character">') : defaultCharacterHTML[type];
+}
+
+function applyAllCharacterImages(){
+  ['apple','orange','banana'].forEach(applyCharacterImage);
+}
+
+function refreshSlotThumb(kind, type){
+  const thumb = document.getElementById('thumb_' + kind + '_' + type);
+  const clearBtn = document.querySelector('.slotClear[data-kind="' + kind + '"][data-type="' + type + '"]');
+  const store = kind === 'fruit' ? customFruitImages : customCharacterImages;
+  const dataUrl = store[type];
+  if(dataUrl){
+    thumb.innerHTML = '<img src="' + dataUrl + '" alt="">';
+    clearBtn.classList.remove('hidden');
+  } else {
+    thumb.innerHTML = FRUITS[type] ? (kind === 'fruit' ? FRUITS[type] : thumb.dataset.defaultIcon) : '';
+    clearBtn.classList.add('hidden');
+  }
+}
+
+function refreshAllSlotThumbs(){
+  ['apple','orange','banana'].forEach(type => {
+    refreshSlotThumb('fruit', type);
+    refreshSlotThumb('char', type);
+  });
+}
+
+const customizeModal = document.getElementById('customizeModal');
+
+function openCustomizeModal(){
+  refreshAllSlotThumbs();
+  customizeModal.classList.remove('hidden');
+}
+function closeCustomizeModal(){
+  customizeModal.classList.add('hidden');
+}
+
+document.getElementById('customizeBtnStart').addEventListener('click', openCustomizeModal);
+document.getElementById('customizeBtnGame').addEventListener('click', openCustomizeModal);
+document.getElementById('customizeDoneBtn').addEventListener('click', closeCustomizeModal);
+
+document.querySelectorAll('.slot input[type=file]').forEach(input => {
+  input.addEventListener('change', (e) => {
+    const file = e.target.files && e.target.files[0];
+    if(!file) return;
+    if(!file.type.startsWith('image/')){
+      alert('Please choose an image file.');
+      return;
+    }
+    const kind = input.dataset.kind;
+    const type = input.dataset.type;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result;
+      if(kind === 'fruit'){
+        customFruitImages[type] = dataUrl;
+        refreshActiveFruitVisuals(type);
+      } else {
+        customCharacterImages[type] = dataUrl;
+        applyCharacterImage(type);
+      }
+      saveCustomImages();
+      refreshSlotThumb(kind, type);
+    };
+    reader.readAsDataURL(file);
+  });
+});
+
+document.querySelectorAll('.slotClear').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const kind = btn.dataset.kind;
+    const type = btn.dataset.type;
+    if(kind === 'fruit'){
+      delete customFruitImages[type];
+      refreshActiveFruitVisuals(type);
+    } else {
+      delete customCharacterImages[type];
+      applyCharacterImage(type);
+    }
+    saveCustomImages();
+    refreshSlotThumb(kind, type);
+  });
+});
+
+document.getElementById('resetImagesBtn').addEventListener('click', () => {
+  customFruitImages = {};
+  customCharacterImages = {};
+  saveCustomImages();
+  refreshActiveFruitVisuals();
+  applyAllCharacterImages();
+  refreshAllSlotThumbs();
+});
+
+// Remember each slot's default emoji icon (used to restore thumbnails after Reset).
+document.getElementById('thumb_char_apple').dataset.defaultIcon = '🦛';
+document.getElementById('thumb_char_orange').dataset.defaultIcon = '🐸';
+document.getElementById('thumb_char_banana').dataset.defaultIcon = '🐼';
+
+loadCustomImages();
+applyAllCharacterImages();
+refreshAllSlotThumbs();
+
+const ROUND_SIZE_PER_TYPE = 3; // 3 apples + 3 oranges + 3 bananas = 9
+let MAX_ON_SCREEN = 4;
+
+let queue = [];      // fruit types still waiting to spawn
+let totalToSort = 0;
+let sortedCount = 0;
+let activeFruits = new Map(); // el -> {type}
+
+// Per-slot grab state: any active player slot (A-E) can be holding a
+// different fruit at the same time, since everyone plays simultaneously.
+let slotState = { A:{grabbedEl:null}, B:{grabbedEl:null}, C:{grabbedEl:null}, D:{grabbedEl:null}, E:{grabbedEl:null} };
+
+function shuffle(arr){
+  for(let i=arr.length-1;i>0;i--){
+    const j = Math.floor(Math.random()*(i+1));
+    [arr[i],arr[j]] = [arr[j],arr[i]];
+  }
+  return arr;
+}
+
+function buildQueue(){
+  let list = [];
+  Object.keys(FRUITS).forEach(type => {
+    for(let i=0;i<ROUND_SIZE_PER_TYPE;i++) list.push(type);
+  });
+  return shuffle(list);
+}
+
+let cachedStageRect = null;
+function refreshStageRect(){ cachedStageRect = stage.getBoundingClientRect(); }
+function stageXY(nx, ny){
+  const r = cachedStageRect || stage.getBoundingClientRect();
+  return { x: nx * r.width, y: ny * r.height, w:r.width, h:r.height };
+}
+window.addEventListener('resize', refreshStageRect, {passive:true});
+
+function randomSpawnPos(){
+  const r = stage.getBoundingClientRect();
+  const margin = 50;
+  const topLimit = 20;
+  const bottomLimit = r.height * 0.52; // keep clear of baskets
+  const x = margin + Math.random() * (r.width - margin*2 - 74);
+  const y = topLimit + Math.random() * (bottomLimit - topLimit);
+  return {x, y};
+}
+
+function spawnFruit(){
+  if(queue.length === 0) return;
+  if(activeFruits.size >= MAX_ON_SCREEN) return;
+  const type = queue.shift();
+  const el = document.createElement('div');
+  el.className = 'fruit';
+  el.dataset.type = type;
+  applyFruitVisual(el, type);
+  const pos = randomSpawnPos();
+  el.style.left = pos.x + 'px';
+  el.style.top = pos.y + 'px';
+  stage.appendChild(el);
+  activeFruits.set(el, {type});
+
+  // mouse/touch fallback for testing without a camera
+  el.addEventListener('mousedown', (e) => {
+    beginGrab(el, e.clientX, e.clientY);
+    e.preventDefault();
+  });
+  el.addEventListener('touchstart', (e) => {
+    const t = e.touches[0];
+    beginGrab(el, t.clientX, t.clientY);
+    e.preventDefault();
+  }, {passive:false});
+}
+
+function fillStage(){
+  while(activeFruits.size < MAX_ON_SCREEN && queue.length > 0){
+    spawnFruit();
+  }
+}
+
+function updateHud(){
+  remainingEl.textContent = 'Left: ' + (totalToSort - sortedCount);
+}
+
+function elCenter(el){
+  const r = el.getBoundingClientRect();
+  const sR = stage.getBoundingClientRect();
+  return { x: r.left - sR.left + r.width/2, y: r.top - sR.top + r.height/2 };
+}
+
+function findClosestFruit(px, py, maxDist){
+  const claimed = new Set(Object.values(slotState).map(s => s.grabbedEl).filter(Boolean));
+  let closest = null, closestDist = maxDist;
+  activeFruits.forEach((data, el) => {
+    if(claimed.has(el)) return;
+    const c = elCenter(el);
+    const d = Math.hypot(px - c.x, py - c.y);
+    if(d < closestDist){ closestDist = d; closest = el; }
+  });
+  return closest;
+}
+
+function findBasketUnder(px, py){
+  let found = null;
+  Object.entries(basketEls).forEach(([type, bEl]) => {
+    const r = bEl.getBoundingClientRect();
+    const sR = stage.getBoundingClientRect();
+    const cx = r.left - sR.left + r.width/2;
+    const cy = r.top - sR.top + r.height/2;
+    const rad = Math.max(r.width, r.height) / 2 + 20;
+    if(Math.hypot(px-cx, py-cy) < rad) found = type;
+  });
+  return found;
+}
+
+function beginGrab(el, clientX, clientY){
+  const sR = stage.getBoundingClientRect();
+  if(clientX < sR.left || clientX > sR.right || clientY < sR.top || clientY > sR.bottom) return;
+  const slot = 'A'; // mouse/touch testing always drives slot A
+  if(slotState[slot].grabbedEl) return;
+  slotState[slot].grabbedEl = el;
+  el.classList.remove('settle');
+  el.classList.add('grabbed');
+  cursorEls[slot].classList.add('dragging');
+
+  function onMove(ev){
+    const cx = ev.touches ? ev.touches[0].clientX : ev.clientX;
+    const cy = ev.touches ? ev.touches[0].clientY : ev.clientY;
+    moveSlotGrab(slot, cx - sR.left, cy - sR.top);
+  }
+  function onUp(ev){
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    document.removeEventListener('touchmove', onMove);
+    document.removeEventListener('touchend', onUp);
+    dropSlotGrab(slot);
+  }
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+  document.addEventListener('touchmove', onMove, {passive:false});
+  document.addEventListener('touchend', onUp);
+}
+
+function trySlotGrab(slot, px, py){
+  if(slotState[slot].grabbedEl) return;
+  const closest = findClosestFruit(px, py, 80);
+  if(closest){
+    slotState[slot].grabbedEl = closest;
+    closest.classList.remove('settle');
+    closest.classList.add('grabbed');
+    cursorEls[slot].classList.add('dragging');
+  }
+}
+
+function moveSlotGrab(slot, px, py){
+  const el = slotState[slot].grabbedEl;
+  if(!el) return;
+  el.style.left = (px - el.offsetWidth/2) + 'px';
+  el.style.top = (py - el.offsetHeight/2) + 'px';
+}
+
+function dropSlotGrab(slot){
+  cursorEls[slot].classList.remove('dragging');
+  const el = slotState[slot].grabbedEl;
+  if(!el) return;
+  const data = activeFruits.get(el);
+  const c = elCenter(el);
+  const basketType = findBasketUnder(c.x, c.y);
+  el.classList.remove('grabbed');
+  const playerIdx = playerIndexForSlot(slot);
+
+  if(basketType && data && basketType === data.type){
+    handleCorrectDrop(el, basketType, playerIdx);
+  } else if(basketType){
+    handleWrongDrop(el, basketType);
+  }
+  slotState[slot].grabbedEl = null;
+  if(!simultaneousMode) advanceTurn();
+}
+
+function handleCorrectDrop(el, type, playerIdx){
+  const bEl = basketEls[type];
+  bEl.classList.add('hit');
+  setTimeout(()=>bEl.classList.remove('hit'), 350);
+  el.classList.add('gone');
+  playerScores[playerIdx] += 1;
+  sortedCount += 1;
+  renderScoreboard();
+  updateHud();
+  setTimeout(()=>{
+    el.remove();
+    activeFruits.delete(el);
+    fillStage();
+    checkWin();
+  }, 320);
+}
+
+function handleWrongDrop(el, type){
+  const bEl = basketEls[type];
+  bEl.classList.add('reject');
+  setTimeout(()=>bEl.classList.remove('reject'), 350);
+  el.classList.add('wrong');
+  setTimeout(()=>el.classList.remove('wrong'), 400);
+  // bounce back to a fresh spot up top
+  el.classList.add('settle');
+  const pos = randomSpawnPos();
+  el.style.left = pos.x + 'px';
+  el.style.top = pos.y + 'px';
+  setTimeout(()=>el.classList.remove('settle'), 380);
+}
+
+function checkWin(){
+  if(sortedCount >= totalToSort){
+    const maxScore = Math.max(...playerScores);
+    const winners = [];
+    playerScores.forEach((s,i) => { if(s === maxScore) winners.push('Player ' + (i+1)); });
+    winnerLineEl.textContent = winners.length > 1
+      ? ('🏆 Tie between ' + winners.join(' & ') + '!')
+      : ('🏆 ' + winners[0] + ' wins!');
+    finalScoreEl.innerHTML = playerScores.map((s,i) =>
+      '<div style="color:' + PLAYER_COLORS[i] + '">Player ' + (i+1) + ': ' + s + '</div>'
+    ).join('');
+    winOverlay.classList.remove('hidden');
+  }
+}
+
+function startRound(){
+  refreshStageRect();
+  activeFruits.forEach((d,el)=>el.remove());
+  activeFruits.clear();
+  SLOT_ORDER.forEach(slot => { slotState[slot].grabbedEl = null; });
+  queue = buildQueue();
+  totalToSort = queue.length;
+  sortedCount = 0;
+  setupPlayers();
+  updateHud();
+  fillStage();
+  winOverlay.classList.add('hidden');
+}
+
+document.getElementById('againBtn').addEventListener('click', startRound);
+nextPlayerBtn.addEventListener('click', advanceTurn);
+
+/* ---- player-count picker (start overlay) ---- */
+const MODE_EXPLAIN = {
+  2: "Both hands are tracked at the same time — you and a friend each get your own colored cursor and sort together.",
+  3: "All hands are tracked at once — up to 3 kids can each show one hand and sort at the same time, no turns needed.",
+  4: "All hands are tracked at once — up to 4 kids can each show one hand and sort at the same time, no turns needed.",
+  5: "All hands are tracked at once — up to 5 kids can each show one hand and sort at the same time, no turns needed.",
+};
+const playerSwatchesEl = document.getElementById('playerSwatches');
+const modeExplainEl = document.getElementById('modeExplain');
+const countBtns = document.querySelectorAll('.countBtn');
+
+function updatePlayerCountUI(){
+  countBtns.forEach(b => b.classList.toggle('active', Number(b.dataset.n) === numPlayers));
+  modeExplainEl.textContent = MODE_EXPLAIN[numPlayers];
+  playerSwatchesEl.innerHTML = '';
+  for(let i=0;i<numPlayers;i++){
+    const sw = document.createElement('span');
+    sw.className = 'swatch';
+    sw.style.background = PLAYER_COLORS[i];
+    playerSwatchesEl.appendChild(sw);
+  }
+}
+countBtns.forEach(btn => {
+  btn.addEventListener('click', () => {
+    numPlayers = Number(btn.dataset.n);
+    updatePlayerCountUI();
+  });
+});
+updatePlayerCountUI();
+
+/* ---- wire HandTracker to game (slot-aware, multi-hand) ---- */
+HandTracker.on('move', ({hand,x,y}) => {
+  const slot = slotForHandKey(hand);
+  if(!slot) return;
+  const p = stageXY(x,y);
+  cursorEls[slot].style.left = p.x + 'px';
+  cursorEls[slot].style.top = p.y + 'px';
+});
+
+HandTracker.on('down', ({hand}) => {
+  const slot = slotForHandKey(hand);
+  if(slot) cursorEls[slot].classList.add('closed');
+});
+HandTracker.on('up', ({hand}) => {
+  const slot = slotForHandKey(hand);
+  if(slot) cursorEls[slot].classList.remove('closed');
+});
+
+HandTracker.on('dragstart', ({hand,x,y}) => {
+  const slot = slotForHandKey(hand);
+  if(!slot) return;
+  HandIdentityTracker.setDragging(slot,true);
+  const p = stageXY(x,y);
+  trySlotGrab(slot, p.x, p.y);
+});
+
+HandTracker.on('dragmove', ({hand,x,y}) => {
+  const slot = slotForHandKey(hand);
+  if(!slot) return;
+  const p = stageXY(x,y);
+  moveSlotGrab(slot, p.x, p.y);
+});
+
+HandTracker.on('dragend', ({hand}) => {
+  const slot = slotForHandKey(hand);
+  if(!slot) return;
+  HandIdentityTracker.setDragging(slot,false);
+  dropSlotGrab(slot);
+});
+
+HandTracker.on('swiperight', () => advanceTurn());
+
+/* =========================================================================
+   Camera + model loop
+   ========================================================================= */
+const video = document.getElementById('video');
+const overlay = document.getElementById('overlay');
+const octx = overlay.getContext('2d');
+
+async function main(){
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){statusEl.textContent="⚠️ This browser can't access the camera. Try Chrome or Safari.";return;}
+  try{
+    const stream=await navigator.mediaDevices.getUserMedia({video:{width:{ideal:480,max:640},height:{ideal:360,max:480},facingMode:'user'},audio:false});
+    video.srcObject=stream;
+    await new Promise(res=>video.onloadedmetadata=res);
+    await video.play();
+    overlay.width=video.videoWidth;overlay.height=video.videoHeight;
+  }catch(e){
+    console.error(e);
+    statusEl.textContent=e.name==='NotAllowedError'||e.name==='PermissionDeniedError'?'⚠️ Camera permission was denied. Allow Camera for this page and reload.':e.name==='NotFoundError'?'⚠️ No camera was found on this device.':e.name==='NotReadableError'?'⚠️ Camera is busy — close other apps using it and reload.':"⚠️ Can't reach the camera ("+e.name+").";
+    return;
+  }
+  statusEl.textContent='Loading hand-tracking model…';
+  await tf.setBackend('webgl'); await tf.ready();
+  const model=handPoseDetection.SupportedModels.MediaPipeHands;
+  const detector=await handPoseDetection.createDetector(model,{runtime:'mediapipe',modelType:'lite',maxHands:Math.max(numPlayers,2),solutionPath:'https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1646424915'});
+  const MIRROR_INPUT=true;
+  function landmarksFor(hand){return hand.keypoints.map(k=>({x:MIRROR_INPUT?(1-k.x/video.videoWidth):(k.x/video.videoWidth),y:k.y/video.videoHeight}));}
+  function palmCenterOf(l){const ids=[0,5,9,13,17];let x=0,y=0;ids.forEach(i=>{x+=l[i].x;y+=l[i].y;});return{x:x/ids.length,y:y/ids.length};}
+  function drawHand(h,slot){
+    const i=playerIndexForSlot(slot), color=PLAYER_COLORS[i]||'#fff';
+    octx.fillStyle=color;octx.strokeStyle=color;octx.lineWidth=2;
+    h.keypoints.forEach(k=>{octx.beginPath();octx.arc(k.x,k.y,4,0,Math.PI*2);octx.fill();});
+    const k=h.keypoints[0];
+    octx.font='bold 16px Nunito, sans-serif';octx.fillText('P'+(i+1),k.x+8,k.y-8);
+  }
+  async function runCalibration(){
+    if(numPlayers<1)return;
+    const cal=document.getElementById('calibrationOverlay'), title=document.getElementById('calibrationTitle'), instr=document.getElementById('calibrationInstruction'), prog=document.getElementById('calibrationProgress'), stat=document.getElementById('calibrationStatus'), target=document.getElementById('calibrationTarget'), skip=document.getElementById('skipCalibrationBtn'), summary=document.getElementById('calibrationSummary'), canvas=document.getElementById('calibrationCanvas'), cctx=canvas.getContext('2d');
+    canvas.width=video.videoWidth; canvas.height=video.videoHeight;
+     skip.onclick=()=>{calibrationSkipped=true;cal.classList.add('hidden');statusEl.textContent='🖐️ Show your hands to the camera!';};
+    if(calibrationSkipped)return;
+    cal.classList.remove('hidden');
+    const active=SLOT_ORDER.slice(0,numPlayers);
+    for(let pi=0;pi<active.length;pi++){
+      const slot=active[pi], color=PLAYER_COLORS[pi];
+      title.textContent='🖐 Player '+(pi+1); instr.textContent='Put your hand inside the '+['RED','BLUE','PURPLE','GREEN','ORANGE'][pi]+' circle and hold still.';
+      target.style.setProperty('--cal-color',color); target.style.borderColor=color; target.style.background='rgba(255,255,255,.72)'; prog.style.background=color; prog.style.width='0%'; stat.textContent='Get ready...'; summary.textContent='Player '+(pi+1)+' of '+numPlayers;
+      let stableStart=0, lastFrame=performance.now(), captured=null;
+      while(!captured){
+        const now=performance.now();
+        const hands=await detector.estimateHands(video,{flipHorizontal:false});
+        cctx.clearRect(0,0,canvas.width,canvas.height);
+        if(hands.length===1){
+          const l=landmarksFor(hands[0]), p=palmCenterOf(l), size=HandIdentityTracker.handSize(l);
+          const targetDist=Math.hypot(p.x-0.5,p.y-0.5);
+          if(targetDist<0.18){
+            if(!stableStart)stableStart=now;
+            const elapsed=Math.min(900,now-stableStart), pct=elapsed/900*100; prog.style.width=pct+'%'; stat.textContent='Hold still... '+Math.round(pct)+'%'; target.classList.add('stable');
+            if(elapsed>=900){captured={landmarks:l,palm:p,handSize:size,handedness:hands[0].handedness?.[0]?.label||null};}
+          }else{stableStart=0;prog.style.width='0%';stat.textContent='Move your hand into the circle';target.classList.remove('stable');}
+        }else if(hands.length===0){stableStart=0;prog.style.width='0%';stat.textContent='Show your hand in the circle';target.classList.remove('stable');}
+        else{stableStart=0;prog.style.width='0%';stat.textContent='Only Player '+(pi+1)+' should show a hand';target.classList.remove('stable');}
+        await new Promise(r=>requestAnimationFrame(r));
+      }
+      const wrist= captured.landmarks[0], hs=Math.max(captured.handSize,0.01);
+      const geometry=captured.landmarks.map(p=>({x:(p.x-wrist.x)/hs,y:(p.y-wrist.y)/hs}));
+      calibrationProfiles[slot]={landmarks:captured.landmarks,palm:captured.palm,handSize:captured.handSize,geometry,handedness:captured.handedness,calibratedAt:Date.now()};
+      HandIdentityTracker.setProfile(slot,calibrationProfiles[slot]);
+      stat.textContent='✓ Player '+(pi+1)+' ready!'; prog.style.width='100%'; target.classList.remove('stable');
+      await new Promise(r=>setTimeout(r,500));
+    }
+    title.textContent='🎉 Everyone is ready!'; instr.textContent='Your hand colors are locked in. Get ready!'; stat.textContent='3... 2... 1... GO!'; summary.textContent='Calibration complete. Tracking is now personalized for each player.';
+    await new Promise(r=>setTimeout(r,1100)); cal.classList.add('hidden'); statusEl.textContent='🖐️ Show your hands to the camera!';
+  }
+  await runCalibration();
+  let lastSeen=0;
+  let lastInference=0;
+  let inferenceBusy=false;
+  const INFERENCE_INTERVAL=33;
+  async function loop(){
+    const now=performance.now();
+    if(inferenceBusy || now-lastInference<INFERENCE_INTERVAL){ requestAnimationFrame(loop); return; }
+    inferenceBusy=true;
+    lastInference=now;
+    const hands=await detector.estimateHands(video,{flipHorizontal:false});
+    octx.clearRect(0,0,overlay.width,overlay.height);
+    if(hands.length){
+      lastSeen=now;
+      const allLandmarks=hands.map(landmarksFor);
+      const centers=allLandmarks.map(palmCenterOf);
+      const slots=HandIdentityTracker.assign(centers.map((p,i)=>({x:p.x,y:p.y,landmarks:allLandmarks[i]})),now);
+      const handsForEngine=[]; let visible=0;
+      hands.forEach((h,i)=>{
+        const slot=slots[i]; if(!slot)return;
+        visible++;
+        drawHand(h,slot);
+        const size=HandIdentityTracker.handSize(allLandmarks[i]);
+        const sensitivity=HandIdentityTracker.sensitivityFor(slot,size);
+        handsForEngine.push({key:slot,landmarks:allLandmarks[i],sensitivity});
+      });
+      statusEl.textContent=visible+' of '+numPlayers+' players — show more hands!';
+      HandTracker.processHands(handsForEngine,now);
+    }else if(now-lastSeen>400){
+      statusEl.textContent='🖐️ Show your hand'+(numPlayers>1?'s':'')+' to the camera!'; HandTracker.noHandVisible();
+    }
+    inferenceBusy=false;
+    requestAnimationFrame(loop);
+  }
+  loop();
+}
+
+document.getElementById('startBtn').addEventListener('click', () => {
+  document.getElementById('startOverlay').classList.add('hidden');
+  calibrationSkipped = false;
+  calibrationProfiles = {};
+  startRound();
+  main();
+});
+</script>
+</body>
+</html>
